@@ -154,8 +154,8 @@ public class ServiceCategoryTests
 
         // Assert
         category2.Should().NotBeNull();
-        category1.Should().Be(category2);
-        (category1 == category2!).Should().BeTrue();
+        category1.Should().Be(category2!);
+        category1.Equals(category2!).Should().BeTrue();
     }
 
     [Fact]

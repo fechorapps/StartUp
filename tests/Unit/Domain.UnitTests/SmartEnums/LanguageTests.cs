@@ -220,8 +220,8 @@ public class LanguageTests
 
         // Assert
         language2.Should().NotBeNull();
-        language1.Should().Be(language2);
-        (language1 == language2!).Should().BeTrue();
+        language1.Should().Be(language2!);
+        language1.Equals(language2!).Should().BeTrue();
     }
 
     [Fact]

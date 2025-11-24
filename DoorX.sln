@@ -1,4 +1,4 @@
-
+﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.0.31903.59
@@ -28,6 +28,22 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "API.IntegrationTests", "tests\Integration\API.IntegrationTests\API.IntegrationTests.csproj", "{D4234567-1234-1234-1234-123456789ABC}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Infrastructure.IntegrationTests", "tests\Integration\Infrastructure.IntegrationTests\Infrastructure.IntegrationTests.csproj", "{D5234567-1234-1234-1234-123456789ABC}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{06F5355D-B3BB-4A0F-A4C8-FD629B012097}"
+	ProjectSection(SolutionItems) = preProject
+		.dockerignore = .dockerignore
+		.env.example = .env.example
+		.gitignore = .gitignore
+		claude.md = claude.md
+		Directory.Build.props = Directory.Build.props
+		Directory.Build.targets = Directory.Build.targets
+		Directory.Packages.props = Directory.Packages.props
+		docker-compose.yml = docker-compose.yml
+		Dockerfile = Dockerfile
+		LICENSE = LICENSE
+		NuGet.config = NuGet.config
+		README.md = README.md
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

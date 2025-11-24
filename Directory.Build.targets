@@ -1,5 +1,4 @@
-<Project>
-
+<Project>  
   <!-- Target personalizado: Mostrar información del build -->
   <Target Name="ShowBuildInfo" BeforeTargets="CoreCompile">
     <Message Importance="high" Text="================================================" />
@@ -48,6 +47,60 @@
     <Message Importance="high" Text="Build completed successfully for $(MSBuildProjectName)" />
     <Message Importance="high" Text="Output: $(OutputPath)" />
     <Message Importance="high" Text="Assembly: $(TargetFileName)" />
+  </Target>
+
+  <!-- Target personalizado para verificar actualizaciones de paquetes -->
+  <Target Name="CheckPackageUpdates">
+    <Message Text="========================================" Importance="high" />
+    <Message Text="🔍 Verificando actualizaciones de paquetes NuGet..." Importance="high" />
+    <Message Text="========================================" Importance="high" />
+    <Exec Command="dotnet list package --outdated"
+          WorkingDirectory="$(SolutionDir)"
+          IgnoreExitCode="true" />
+    <Message Text="========================================" Importance="high" />
+    <Message Text="✅ Verificación completada" Importance="high" />
+    <Message Text="========================================" Importance="high" />
+  </Target>
+
+  <!-- Target para verificar vulnerabilidades de seguridad -->
+  <Target Name="CheckVulnerabilities">
+    <Message Text="========================================" Importance="high" />
+    <Message Text="🔒 Verificando vulnerabilidades de seguridad..." Importance="high" />
+    <Message Text="========================================" Importance="high" />
+    <Exec Command="dotnet list package --vulnerable --include-transitive"
+          WorkingDirectory="$(SolutionDir)"
+          IgnoreExitCode="true" />
+    <Message Text="========================================" Importance="high" />
+    <Message Text="✅ Verificación de seguridad completada" Importance="high" />
+    <Message Text="========================================" Importance="high" />
+  </Target>
+
+  <!-- Target para verificar paquetes deprecados -->
+  <Target Name="CheckDeprecated">
+    <Message Text="========================================" Importance="high" />
+    <Message Text="⚠️  Verificando paquetes deprecados..." Importance="high" />
+    <Message Text="========================================" Importance="high" />
+    <Exec Command="dotnet list package --deprecated --include-transitive"
+          WorkingDirectory="$(SolutionDir)"
+          IgnoreExitCode="true" />
+    <Message Text="========================================" Importance="high" />
+    <Message Text="✅ Verificación de deprecados completada" Importance="high" />
+    <Message Text="========================================" Importance="high" />
+  </Target>
+
+  <!-- Target combinado para ejecutar todas las verificaciones -->
+  <Target Name="CheckPackageHealth" DependsOnTargets="CheckPackageUpdates;CheckVulnerabilities;CheckDeprecated">
+    <Message Text="" Importance="high" />
+    <Message Text="========================================" Importance="high" />
+    <Message Text="🎉 Todas las verificaciones completadas" Importance="high" />
+    <Message Text="========================================" Importance="high" />
+    <Message Text="" Importance="high" />
+    <Message Text="Comandos disponibles:" Importance="high" />
+    <Message Text="  dotnet build -t:CheckPackageUpdates     - Verificar actualizaciones" Importance="high" />
+    <Message Text="  dotnet build -t:CheckVulnerabilities    - Verificar vulnerabilidades" Importance="high" />
+    <Message Text="  dotnet build -t:CheckDeprecated         - Verificar paquetes deprecados" Importance="high" />
+    <Message Text="  dotnet build -t:CheckPackageHealth      - Ejecutar todas las verificaciones" Importance="high" />
+    <Message Text="========================================" Importance="high" />
   </Target>
 
 </Project>

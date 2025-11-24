@@ -275,7 +275,7 @@ public class VendorBidTests
 
         // Assert
         bid.Should().Be(bid);
-        (bid == bid).Should().BeTrue();
+        bid.Equals(bid).Should().BeTrue();
     }
 
     [Fact]
