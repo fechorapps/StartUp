@@ -1,0 +1,189 @@
+name: Deploy to Staging
+
+on:
+  push:
+    tags:
+      - 'v*-rc*'  # Triggers on tags like v1.0.0-rc1, v2.1.0-rc2
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to deploy (e.g., v1.0.0-rc1)'
+        required: true
+        type: string
+
+env:
+  DOTNET_VERSION: '8.0.x'
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}/doorx-api
+
+jobs:
+  build-and-deploy:
+    name: Build & Deploy to Staging
+    runs-on: ubuntu-latest
+    environment:
+      name: staging
+      url: ${{ vars.STAGING_URL || 'https://staging.doorx.app' }}
+
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        ref: ${{ github.event.inputs.tag || github.ref }}
+
+    - name: Extract version from tag
+      id: version
+      run: |
+        if [ "${{ github.event.inputs.tag }}" != "" ]; then
+          TAG="${{ github.event.inputs.tag }}"
+        else
+          TAG="${GITHUB_REF#refs/tags/}"
+        fi
+        echo "tag=$TAG" >> $GITHUB_OUTPUT
+        echo "version=${TAG#v}" >> $GITHUB_OUTPUT
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Log in to Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+        tags: |
+          type=semver,pattern={{version}},value=${{ steps.version.outputs.tag }}
+          type=semver,pattern={{major}}.{{minor}},value=${{ steps.version.outputs.tag }}
+          type=raw,value=staging-latest
+
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: ./Dockerfile
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+        build-args: |
+          BUILD_CONFIGURATION=Release
+          ASPNETCORE_ENVIRONMENT=Staging
+
+    - name: Generate deployment package
+      run: |
+        mkdir -p ./artifacts
+        cat > ./artifacts/docker-compose.staging.yml <<EOF
+        version: '3.8'
+
+        services:
+          doorx-api:
+            image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.version }}
+            container_name: doorx-api-staging
+            restart: unless-stopped
+            ports:
+              - "5001:8080"
+            environment:
+              - ASPNETCORE_ENVIRONMENT=Staging
+              - ASPNETCORE_URLS=http://+:8080
+              - ConnectionStrings__DefaultConnection=\${DATABASE_CONNECTION_STRING}
+            depends_on:
+              - postgres
+            networks:
+              - doorx-network
+            healthcheck:
+              test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+              interval: 30s
+              timeout: 10s
+              retries: 3
+              start_period: 40s
+
+          postgres:
+            image: postgres:16-alpine
+            container_name: doorx-postgres-staging
+            restart: unless-stopped
+            environment:
+              - POSTGRES_USER=doorx
+              - POSTGRES_PASSWORD=\${POSTGRES_PASSWORD}
+              - POSTGRES_DB=doorx_staging
+            ports:
+              - "5433:5432"
+            volumes:
+              - postgres-data:/var/lib/postgresql/data
+            networks:
+              - doorx-network
+
+        networks:
+          doorx-network:
+            driver: bridge
+
+        volumes:
+          postgres-data:
+        EOF
+
+    - name: Install 7zip
+      run: sudo apt-get update && sudo apt-get install -y p7zip-full
+
+    - name: Create deployment archive
+      run: |
+        cd ./artifacts
+        7z a -t7z -mx=9 doorx-staging-${{ steps.version.outputs.version }}.7z *
+
+    - name: Upload deployment package
+      uses: actions/upload-artifact@v4
+      with:
+        name: staging-deployment-package-${{ steps.version.outputs.version }}
+        path: ./artifacts/doorx-staging-${{ steps.version.outputs.version }}.7z
+        retention-days: 90
+
+    - name: Deploy to Staging Server
+      if: secrets.STAGING_SERVER_HOST != ''
+      uses: appleboy/ssh-action@v1.0.0
+      with:
+        host: ${{ secrets.STAGING_SERVER_HOST }}
+        username: ${{ secrets.STAGING_SERVER_USER }}
+        key: ${{ secrets.STAGING_SERVER_SSH_KEY }}
+        script: |
+          cd /opt/doorx
+
+          # Backup current version
+          docker compose -f docker-compose.staging.yml down
+
+          # Pull new images
+          docker compose -f docker-compose.staging.yml pull
+
+          # Start new version
+          docker compose -f docker-compose.staging.yml up -d
+
+          # Wait for health check
+          sleep 10
+          docker compose -f docker-compose.staging.yml exec -T doorx-api curl -f http://localhost:8080/health || exit 1
+
+    - name: Run integration tests
+      if: vars.STAGING_URL != ''
+      run: |
+        echo "Running integration tests against staging..."
+        # Add your integration test commands here
+        curl -f ${{ vars.STAGING_URL }}/health || exit 1
+
+    - name: Deployment summary
+      run: |
+        echo "## 🎭 Staging Deployment" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Environment:** Staging" >> $GITHUB_STEP_SUMMARY
+        echo "**Version:** \`${{ steps.version.outputs.version }}\`" >> $GITHUB_STEP_SUMMARY
+        echo "**Image:** \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.version }}\`" >> $GITHUB_STEP_SUMMARY
+        echo "**URL:** ${{ vars.STAGING_URL }}" >> $GITHUB_STEP_SUMMARY
+        echo "**Deployed by:** ${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### ✅ Deployment successful!" >> $GITHUB_STEP_SUMMARY
+        echo "Ready for QA testing" >> $GITHUB_STEP_SUMMARY

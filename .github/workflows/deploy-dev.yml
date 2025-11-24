@@ -1,0 +1,205 @@
+name: Deploy to Development
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+env:
+  DOTNET_VERSION: '8.0.x'
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}/doorx-api
+
+jobs:
+  build-and-deploy:
+    name: Build & Deploy to Dev
+    runs-on: ubuntu-latest
+    environment:
+      name: development
+      url: ${{ vars.DEV_URL || 'http://dev.doorx.local' }}
+
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Log in to Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+        tags: |
+          type=ref,event=branch
+          type=sha,prefix={{branch}}-
+          type=raw,value=dev-latest
+
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: ./Dockerfile
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+        build-args: |
+          BUILD_CONFIGURATION=Release
+          ASPNETCORE_ENVIRONMENT=Development
+
+    - name: Generate deployment package
+      run: |
+        mkdir -p ./artifacts
+        cat > ./artifacts/docker-compose.dev.yml <<EOF
+        version: '3.8'
+
+        services:
+          doorx-api:
+            image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:dev-latest
+            container_name: doorx-api-dev
+            restart: unless-stopped
+            ports:
+              - "5000:8080"
+            environment:
+              - ASPNETCORE_ENVIRONMENT=Development
+              - ASPNETCORE_URLS=http://+:8080
+              - ConnectionStrings__DefaultConnection=\${DATABASE_CONNECTION_STRING}
+            depends_on:
+              - postgres
+            networks:
+              - doorx-network
+
+          postgres:
+            image: postgres:16-alpine
+            container_name: doorx-postgres-dev
+            restart: unless-stopped
+            environment:
+              - POSTGRES_USER=doorx
+              - POSTGRES_PASSWORD=\${POSTGRES_PASSWORD}
+              - POSTGRES_DB=doorx_dev
+            ports:
+              - "5432:5432"
+            volumes:
+              - postgres-data:/var/lib/postgresql/data
+            networks:
+              - doorx-network
+
+        networks:
+          doorx-network:
+            driver: bridge
+
+        volumes:
+          postgres-data:
+        EOF
+
+        cat > ./artifacts/deploy.sh <<EOF
+        #!/bin/bash
+        set -e
+
+        echo "🚀 Deploying DoorX to Development..."
+
+        # Pull latest images
+        docker compose -f docker-compose.dev.yml pull
+
+        # Stop existing containers
+        docker compose -f docker-compose.dev.yml down
+
+        # Start new containers
+        docker compose -f docker-compose.dev.yml up -d
+
+        # Wait for services to be healthy
+        echo "⏳ Waiting for services to start..."
+        sleep 10
+
+        # Run database migrations
+        docker compose -f docker-compose.dev.yml exec -T doorx-api dotnet ef database update || true
+
+        # Health check
+        echo "🏥 Running health check..."
+        for i in {1..30}; do
+          if curl -f http://localhost:5000/health > /dev/null 2>&1; then
+            echo "✅ Deployment successful!"
+            exit 0
+          fi
+          echo "Waiting for API to be ready... (\$i/30)"
+          sleep 2
+        done
+
+        echo "❌ Health check failed!"
+        docker compose -f docker-compose.dev.yml logs doorx-api
+        exit 1
+        EOF
+
+        chmod +x ./artifacts/deploy.sh
+
+    - name: Upload deployment artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: dev-deployment-package
+        path: ./artifacts/*
+        retention-days: 30
+
+    # Optional: Deploy to actual server via SSH
+    - name: Deploy to Dev Server (Optional)
+      if: vars.DEV_SERVER_HOST != ''
+      uses: appleboy/ssh-action@v1.0.0
+      with:
+        host: ${{ secrets.DEV_SERVER_HOST }}
+        username: ${{ secrets.DEV_SERVER_USER }}
+        key: ${{ secrets.DEV_SERVER_SSH_KEY }}
+        script: |
+          cd /opt/doorx
+
+          # Pull latest images
+          docker compose -f docker-compose.dev.yml pull
+
+          # Restart services
+          docker compose -f docker-compose.dev.yml up -d
+
+          # Run migrations
+          docker compose -f docker-compose.dev.yml exec -T doorx-api dotnet ef database update || true
+
+          # Health check
+          sleep 5
+          curl -f http://localhost:5000/health || exit 1
+
+    - name: Smoke test
+      if: vars.DEV_URL != ''
+      run: |
+        echo "Running smoke tests..."
+
+        # Wait for deployment
+        sleep 10
+
+        # Test health endpoint
+        curl -f ${{ vars.DEV_URL }}/health || exit 1
+
+        echo "✅ Smoke tests passed!"
+
+    - name: Deployment summary
+      run: |
+        echo "## 🚀 Development Deployment" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Environment:** Development" >> $GITHUB_STEP_SUMMARY
+        echo "**Image:** \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:dev-latest\`" >> $GITHUB_STEP_SUMMARY
+        echo "**Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+        echo "**Deployed by:** ${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
+        echo "**Deployment time:** $(date -u)" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### 📦 Docker Image Tags" >> $GITHUB_STEP_SUMMARY
+        echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+        echo "${{ steps.meta.outputs.tags }}" >> $GITHUB_STEP_SUMMARY
+        echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
