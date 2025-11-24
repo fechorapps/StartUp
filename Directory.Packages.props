@@ -24,4 +24,8 @@
     <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="8.0.0" />
   </ItemGroup>
 
+  <ItemGroup Label="Domain Dependencies">
+    <PackageVersion Include="ErrorOr" Version="2.0.1" />
+  </ItemGroup>
+
 </Project>
