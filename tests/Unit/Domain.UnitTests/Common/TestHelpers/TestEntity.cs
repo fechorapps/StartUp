@@ -20,6 +20,12 @@ internal sealed class TestEntity : Entity<Guid>
         Name = string.Empty;
     }
 
+    // Factory method to test parameterless constructor
+    public static TestEntity CreateForSerialization()
+    {
+        return new TestEntity();
+    }
+
     public void ChangeName(string newName)
     {
         Name = newName;

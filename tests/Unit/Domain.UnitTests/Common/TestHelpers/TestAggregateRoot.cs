@@ -23,6 +23,12 @@ internal sealed class TestAggregateRoot : AggregateRoot<Guid>
         Version = 0;
     }
 
+    // Factory method to test parameterless constructor
+    public static TestAggregateRoot CreateForSerialization()
+    {
+        return new TestAggregateRoot();
+    }
+
     public void ChangeName(string newName)
     {
         Name = newName;
