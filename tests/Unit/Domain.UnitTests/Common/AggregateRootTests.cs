@@ -37,6 +37,18 @@ public class AggregateRootTests
         aggregate.DomainEvents.Should().BeEmpty();
     }
 
+    [Fact]
+    public void ParameterlessConstructor_ShouldBeUsableForSerialization()
+    {
+        // Arrange & Act
+        var aggregate = TestAggregateRoot.CreateForSerialization();
+
+        // Assert
+        aggregate.Should().NotBeNull();
+        aggregate.DomainEvents.Should().NotBeNull();
+        aggregate.DomainEvents.Should().BeEmpty();
+    }
+
     #endregion
 
     #region Domain Event Management Tests

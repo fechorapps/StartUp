@@ -48,6 +48,17 @@ public class EntityTests
         entity.ModifiedOnUtc.Should().BeNull();
     }
 
+    [Fact]
+    public void ParameterlessConstructor_ShouldBeUsableForSerialization()
+    {
+        // Arrange & Act
+        var entity = TestEntity.CreateForSerialization();
+
+        // Assert
+        entity.Should().NotBeNull();
+        entity.ModifiedOnUtc.Should().BeNull();
+    }
+
     #endregion
 
     #region Equality Tests
@@ -332,7 +343,7 @@ public class EntityTests
         // Assert
         firstModified.Should().NotBeNull();
         secondModified.Should().NotBeNull();
-        secondModified.Should().BeAfter(firstModified.Value);
+        secondModified!.Value.Should().BeAfter(firstModified!.Value);
     }
 
     [Fact]
