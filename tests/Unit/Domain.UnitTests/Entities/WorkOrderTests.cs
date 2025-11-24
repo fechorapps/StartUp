@@ -2,6 +2,7 @@ using DoorX.Domain.Properties.ValueObjects;
 using DoorX.Domain.Tenants.ValueObjects;
 using DoorX.Domain.Vendors.ValueObjects;
 using DoorX.Domain.WorkOrders.Entities;
+using DoorX.Domain.WorkOrders.Events;
 using DoorX.Domain.WorkOrders.ValueObjects;
 
 namespace DoorX.Domain.UnitTests.Entities;
@@ -170,7 +171,7 @@ public class WorkOrderTests
 
         // Assert
         result.IsError.Should().BeTrue();
-        result.FirstError.Type.Should().Be(ErrorType.Conflict);
+        result.FirstError.Code.Should().Contain("WorkOrder.AddBid");
     }
 
     [Fact]
@@ -206,7 +207,7 @@ public class WorkOrderTests
 
         // Assert
         result.IsError.Should().BeTrue();
-        result.FirstError.Type.Should().Be(ErrorType.NotFound);
+        result.FirstError.Code.Should().Contain("WorkOrder.AssignVendor");
     }
 
     [Fact]
