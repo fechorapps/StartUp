@@ -87,7 +87,7 @@ public class WorkOrderStatusTests
     }
 
     [Fact]
-    public void AllowsModifications_ForActiveStat es_ShouldReturnTrue()
+    public void AllowsModifications_ForActiveStates_ShouldReturnTrue()
     {
         // Assert
         WorkOrderStatus.Open.AllowsModifications().Should().BeTrue();
