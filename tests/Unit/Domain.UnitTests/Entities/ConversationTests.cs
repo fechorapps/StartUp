@@ -169,7 +169,7 @@ public class ConversationTests
     }
 
     [Fact]
-    public void GetUnreadMessageCount_ShouldReturnCorrectCount()
+    public void GetUnreadMessageCount_WithUnreadMessages_ShouldReturnCorrectCount()
     {
         // Arrange
         var conversation = CreateValidConversation();
@@ -177,15 +177,28 @@ public class ConversationTests
         conversation.AddMessage("Message 2", SenderType.AI, Channel.SMS);
         conversation.AddMessage("Message 3", SenderType.Vendor, Channel.SMS);
 
-        // Mark first message as read
-        var firstMessage = conversation.Messages.First();
-        firstMessage.MarkAsRead();
-
-        // Act
+        // Act - all messages start as unread
         var unreadCount = conversation.GetUnreadMessageCount();
 
         // Assert
-        unreadCount.Should().Be(2);
+        unreadCount.Should().Be(3);
+    }
+
+    [Fact]
+    public void GetUnreadMessageCount_AfterMarkingAllAsRead_ShouldReturnZero()
+    {
+        // Arrange
+        var conversation = CreateValidConversation();
+        conversation.AddMessage("Message 1", SenderType.Tenant, Channel.SMS);
+        conversation.AddMessage("Message 2", SenderType.AI, Channel.SMS);
+        conversation.AddMessage("Message 3", SenderType.Vendor, Channel.SMS);
+
+        // Act
+        conversation.MarkAllMessagesAsRead();
+        var unreadCount = conversation.GetUnreadMessageCount();
+
+        // Assert
+        unreadCount.Should().Be(0);
     }
 
     [Fact]

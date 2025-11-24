@@ -147,8 +147,9 @@ public class ServiceCategoryTests
         var category2 = ServiceCategory.FromId(1);
 
         // Assert
+        category2.Should().NotBeNull();
         category1.Should().Be(category2);
-        (category1 == category2).Should().BeTrue();
+        (category1 == category2!).Should().BeTrue();
     }
 
     [Fact]
