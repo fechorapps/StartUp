@@ -34,7 +34,6 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution 
 		.dockerignore = .dockerignore
 		.env.example = .env.example
 		.gitignore = .gitignore
-		claude.md = claude.md
 		Directory.Build.props = Directory.Build.props
 		Directory.Build.targets = Directory.Build.targets
 		Directory.Packages.props = Directory.Packages.props
@@ -42,7 +41,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution 
 		Dockerfile = Dockerfile
 		LICENSE = LICENSE
 		NuGet.config = NuGet.config
-		README.md = README.md
+		docs\ARCHITECTURE.md = docs\ARCHITECTURE.md
 	EndProjectSection
 EndProject
 Global

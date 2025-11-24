@@ -1,139 +1,102 @@
-# DoorX - Context Diagram (C4 Level 1)
+Diagrama de Contexto (Actualizado) - Service Management System
+Descripción General
+El sistema es una capa de IA intermedia que permite a huéspedes solicitar servicios de mantenimiento mediante conversación natural. El sistema interpreta las solicitudes, las transforma en work orders estructuradas y las envía a plataformas de gestión de propiedades (Buildium, AppFolio, Hostify), las cuales se encargan de la comunicación directa con los contratistas.
 
-## Descripción
+Actores (Personas)
+ActorDescripciónInteracción con el SistemaGuestUsuario que renta una propiedad y necesita solicitar serviciosEnvía mensajes al chatbot IA, sube fotos, recibe actualizaciones de estadoProperty OwnerDueño de las propiedadesConfigura propiedades, conecta plataformas externas, define reglas de negocioContractorProfesional de servicios⚠️ NO interactúa directamente con el sistema - Recibe trabajo vía Buildium/AppFolio/Hostify
 
-Diagrama de contexto del sistema DoorX mostrando los actores externos (usuarios y sistemas) que interactúan con la plataforma.
+Arquitectura de Integración
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                           FLUJO DE COMUNICACIÓN                                  │
+└─────────────────────────────────────────────────────────────────────────────────┘
 
-**Nivel:** C4 Level 1 - System Context
-**Audiencia:** Todos los stakeholders (técnicos y no técnicos)
-**Propósito:** Vista general del sistema y sus interacciones externas
+                    ┌─────────────┐
+                    │    Guest    │
+                    │    (App)    │
+                    └──────┬──────┘
+                           │
+                           │ Chat / Solicitudes
+                           │ [HTTPS/WSS]
+                           ▼
+              ┌────────────────────────────┐
+              │                            │
+              │   Service Management       │
+              │        System              │
+              │                            │
+              │   • AI Assistant Layer     │
+              │   • Intent Recognition     │
+              │   • Work Order Creation    │
+              │   • Status Tracking        │
+              │                            │
+              └─────────────┬──────────────┘
+                            │
+          ┌─────────────────┼─────────────────┐
+          │                 │                 │
+          ▼                 ▼                 ▼
+┌─────────────┐   ┌─────────────┐   ┌─────────────┐
+│  Buildium   │   │  AppFolio   │   │   Hostify   │
+│             │   │             │   │             │
+│ • Vendors   │   │ • Vendors   │   │ • Vendors   │
+│ • WorkOrders│   │ • WorkOrders│   │ • Tasks     │
+│ • Webhooks  │   │ • Webhooks  │   │ • Webhooks  │
+└──────┬──────┘   └──────┬──────┘   └──────┬──────┘
+│                 │                 │
+│    Notifica     │    Notifica     │    Notifica
+│    y asigna     │    y asigna     │    y asigna
+▼                 ▼                 ▼
+┌─────────────────────────────────────────────────┐
+│                  CONTRACTORS                     │
+│                                                  │
+│   • Reciben trabajo desde su plataforma         │
+│   • Actualizan estado en su plataforma          │
+│   • NO conocen nuestro sistema directamente     │
+│                                                  │
+└─────────────────────────────────────────────────┘
 
----
+Flujo de Datos Detallado
+1. Solicitud del Guest (Outbound)
+   Guest App ──> Sistema ──> Claude API (análisis)
+   │
+   └──> Buildium/AppFolio/Hostify
+   │
+   └──> Crea Work Order
+   └──> Asigna Vendor automáticamente (según reglas de la plataforma)
+   └──> Plataforma notifica al Contractor
+2. Actualizaciones de Estado (Inbound via Webhooks)
+   Contractor actualiza estado en Buildium
+   │
+   ▼
+   Buildium envía Webhook ──> Sistema
+   │
+   ├──> Actualiza ServiceRequest.Status
+   ├──> Notifica al Guest via Push/WebSocket
+   └──> Guarda historial de cambios
 
-## Diagrama
+Sistemas Externos (Actualizado)
+SistemaRolComunicaciónBuildiumPMS - Gestiona vendors y work ordersREST API (outbound) + Webhooks (inbound)AppFolioPMS - Gestiona contractors y work ordersREST API (outbound) + Webhooks (inbound)HostifyPMS - Short-term rentals, tasksREST API (outbound) + Webhooks (inbound)Claude APIIA - Procesa lenguaje naturalREST API (outbound only)
 
-```mermaid
-graph TB
-    %% Actores Humanos
-    Tenant[👤 Tenant<br/>Inquilino]
-    Landlord[👤 Landlord<br/>Propietario]
-    PropertyManager[👤 Property Manager<br/>Administrador]
-    Vendor[👤 Vendor<br/>Contratista]
+Webhooks que el Sistema Recibe
+PlataformaEventoAcción en el SistemaBuildiumworkorder.assignedActualiza ServiceRequest.Status = AssignedBuildiumworkorder.startedActualiza ServiceRequest.Status = InProgressBuildiumworkorder.completedActualiza ServiceRequest.Status = Completed, solicita ratingBuildiumworkorder.cancelledActualiza ServiceRequest.Status = Cancelled, notifica GuestAppFoliowork_order.status_changedMapea estado y actualiza ServiceRequestHostifytask.updatedMapea estado y actualiza ServiceRequest
 
-    %% Sistema Principal
-    DoorX[🏠 DoorX System<br/>Sistema de Gestión de<br/>Mantenimiento con IA]
-
-    %% Sistemas Externos
-    Buildium[📦 Buildium<br/>Property Management System]
-    Hostify[📦 Hostify<br/>Property Management System]
-    AppFolio[📦 AppFolio<br/>Property Management System]
-    Twilio[📱 Twilio<br/>SMS/WhatsApp Gateway]
-    OpenAI[🤖 OpenAI<br/>GPT-4 AI Service]
-    Email[📧 Email Service<br/>SendGrid/AWS SES]
-
-    %% Relaciones - Actores a Sistema
-    Tenant -->|Reporta problemas<br/>vía SMS/WhatsApp/Web| DoorX
-    Landlord -->|Revisa reportes<br/>y métricas| DoorX
-    PropertyManager -->|Gestiona propiedades<br/>y aprueba gastos| DoorX
-    Vendor -->|Recibe solicitudes<br/>y envía ofertas| DoorX
-
-    %% Relaciones - Sistema a Servicios Externos
-    DoorX -->|Envía mensajes SMS<br/>y WhatsApp| Twilio
-    DoorX -->|Procesa lenguaje natural<br/>y categoriza issues| OpenAI
-    DoorX -->|Sincroniza work orders<br/>y vendors| Buildium
-    DoorX -->|Sincroniza work orders<br/>y vendors| Hostify
-    DoorX -->|Sincroniza work orders<br/>y vendors| AppFolio
-    DoorX -->|Envía notificaciones<br/>y confirmaciones| Email
-
-    %% Estilos
-    classDef system fill:#1168bd,stroke:#0b4884,color:#ffffff
-    classDef external fill:#999999,stroke:#666666,color:#ffffff
-    classDef person fill:#08427b,stroke:#052e56,color:#ffffff
-
-    class DoorX system
-    class Buildium,Hostify,AppFolio,Twilio,OpenAI,Email external
-    class Tenant,Landlord,PropertyManager,Vendor person
-```
-
----
-
-## Actores
-
-### 👥 Usuarios Humanos
-
-| Actor | Rol | Interacción Principal |
-|-------|-----|----------------------|
-| **Tenant** (Inquilino) | Usuario final que reporta problemas de mantenimiento | Reporta issues vía SMS, WhatsApp o web chat |
-| **Landlord** (Propietario) | Dueño de propiedades | Visualiza métricas y reportes de sus propiedades |
-| **Property Manager** (Administrador) | Gestiona múltiples propiedades para propietarios | Coordina mantenimiento, aprueba gastos, gestiona vendors |
-| **Vendor** (Contratista) | Proveedor de servicios de mantenimiento | Recibe notificaciones, envía ofertas, completa trabajos |
-
-### 🔗 Sistemas Externos
-
-| Sistema | Propósito | Protocolo |
-|---------|-----------|-----------|
-| **Buildium** | Property Management System | REST API + Webhooks |
-| **Hostify** | Property Management System | REST API + Webhooks |
-| **AppFolio** | Property Management System | REST API + Webhooks |
-| **Twilio** | Gateway de mensajería SMS/WhatsApp | REST API + Webhooks |
-| **OpenAI GPT-4** | Procesamiento de lenguaje natural y categorización | REST API |
-| **Email Service** | Notificaciones y confirmaciones por email | SMTP/API |
-
----
-
-## Flujos Principales
-
-### 1. 📥 Reporte de Problema
-```
-Tenant → SMS/WhatsApp (Twilio) → DoorX → OpenAI (análisis) → Categorización
-```
-
-### 2. 🔄 Sincronización con PMS
-```
-DoorX ↔ Buildium/Hostify/AppFolio (bidireccional)
-  - Export: Work orders creados en DoorX
-  - Import: Vendors y propiedades desde PMS
-```
-
-### 3. 🤖 Conversación con IA
-```
-Tenant → Mensaje → DoorX → OpenAI (GPT-4) → Respuesta inteligente → Tenant
-```
-
-### 4. 📱 Notificaciones
-```
-DoorX → Twilio → SMS/WhatsApp → Usuario
-DoorX → Email Service → Email → Usuario
-```
-
----
-
-## Decisiones de Arquitectura
-
-### ¿Por qué múltiples PMS?
-Diferentes clientes (landlords/property managers) usan distintos sistemas de gestión. DoorX actúa como capa de integración universal mediante un patrón Factory/Adapter.
-
-### ¿Por qué Twilio?
-- Soporte robusto para SMS y WhatsApp
-- APIs confiables y bien documentadas
-- Webhooks para mensajes entrantes
-
-### ¿Por qué OpenAI GPT-4?
-- Procesamiento de lenguaje natural avanzado
-- Capacidad de mantener contexto conversacional
-- API de Assistants con memory y function calling
-
----
-
-## Siguiente Nivel
-
-📍 **Estás aquí:** C4 Level 1 - Context Diagram
-📖 **Siguiente:** [02-container-diagram.md](./02-container-diagram.md) - Descomposición en aplicaciones y servicios
-
----
-
-## Referencias
-
-- [C4 Model Documentation](https://c4model.com/)
-- [DoorX Architecture](../../ARCHITECTURE.md)
-- [DoorX Domain Model](../../DOMAIN_MODEL.md)
+Ejemplo de Flujo Completo (Actualizado)
+TIEMPO    ACTOR/SISTEMA         ACCIÓN
+──────    ─────────────         ──────
+T+0       Guest                 Escribe: "Tengo una fuga en el baño"
+T+1       Sistema → Claude      Analiza intent → Plumbing, High Priority
+T+2       Sistema → Guest       "¿Puedes enviar una foto?"
+T+3       Guest                 Envía foto
+T+4       Sistema → Claude      Analiza imagen → Confirma fuga activa
+T+5       Sistema → Buildium    POST /workorders { type: "Plumbing", priority: "High", ... }
+T+6       Buildium              Asigna automáticamente a vendor según reglas configuradas
+T+7       Buildium              Notifica al contractor via su app/email
+T+8       Buildium → Sistema    Webhook: workorder.assigned { vendorName: "Juan Plomero", scheduledFor: "3pm" }
+T+9       Sistema → Guest       "Se asignó a Juan Plomero, llegará a las 3pm"
+T+10      Contractor            Acepta trabajo en app de Buildium
+T+11      Buildium → Sistema    Webhook: workorder.confirmed
+T+12      Sistema → Guest       "El contratista confirmó la visita"
+T+13      Contractor            Llega y marca "In Progress" en Buildium
+T+14      Buildium → Sistema    Webhook: workorder.started
+T+15      Sistema → Guest       "El contratista ha llegado y está trabajando"
+T+16      Contractor            Termina y marca "Completed" en Buildium
+T+17      Buildium → Sistema    Webhook: workorder.completed { notes: "Replaced pipe", cost: 150 }
+T+18      Sistema → Guest       "¡Trabajo completado! ¿Cómo calificarías el servicio?"
