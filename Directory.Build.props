@@ -51,8 +51,8 @@
     <Description>DoorX Infrastructure Layer - Implementaciones externas</Description>
   </PropertyGroup>
 
-  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'Server'">
-    <Description>DoorX API Server - REST API y controladores</Description>
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'API'">
+    <Description>DoorX API - REST API y controladores</Description>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(MSBuildProjectName)' == 'Client'">

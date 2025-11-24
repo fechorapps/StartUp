@@ -39,7 +39,7 @@
   </Target>
 
   <!-- Target personalizado: Copiar archivos de configuración en desarrollo -->
-  <Target Name="CopyDevSettings" AfterTargets="Build" Condition="'$(Configuration)' == 'Debug' AND '$(MSBuildProjectName)' == 'Server'">
+  <Target Name="CopyDevSettings" AfterTargets="Build" Condition="'$(Configuration)' == 'Debug' AND '$(MSBuildProjectName)' == 'API'">
     <Message Importance="high" Text="Development mode: Configuration files ready" />
   </Target>
 
