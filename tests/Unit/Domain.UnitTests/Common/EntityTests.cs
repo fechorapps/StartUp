@@ -332,7 +332,7 @@ public class EntityTests
         // Assert
         firstModified.Should().NotBeNull();
         secondModified.Should().NotBeNull();
-        secondModified.Should().BeAfter(firstModified.Value);
+        secondModified!.Value.Should().BeAfter(firstModified!.Value);
     }
 
     [Fact]

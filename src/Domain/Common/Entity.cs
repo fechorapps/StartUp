@@ -63,6 +63,9 @@ public abstract class Entity<TId> : IEquatable<Entity<TId>>
         if (ReferenceEquals(this, other))
             return true;
 
+        if (other.GetType() != GetType())
+            return false;
+
         return EqualityComparer<TId>.Default.Equals(Id, other.Id);
     }
 
