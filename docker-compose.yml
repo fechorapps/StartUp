@@ -1,0 +1,96 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: doorx-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: doorx
+      POSTGRES_PASSWORD: doorx_dev_password
+      POSTGRES_DB: doorx_dev
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks:
+      - doorx-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U doorx"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # DoorX API
+  doorx-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        BUILD_CONFIGURATION: Debug
+        ASPNETCORE_ENVIRONMENT: Development
+    container_name: doorx-api
+    restart: unless-stopped
+    ports:
+      - "5000:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:8080
+      - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=doorx_dev;Username=doorx;Password=doorx_dev_password
+      # OpenAI Configuration (set in .env file)
+      - OpenAI__ApiKey=${OPENAI_API_KEY:-}
+      - OpenAI__Model=${OPENAI_MODEL:-gpt-4}
+      # Twilio Configuration (set in .env file)
+      - Twilio__AccountSid=${TWILIO_ACCOUNT_SID:-}
+      - Twilio__AuthToken=${TWILIO_AUTH_TOKEN:-}
+      - Twilio__PhoneNumber=${TWILIO_PHONE_NUMBER:-}
+      # Logging
+      - Logging__LogLevel__Default=Information
+      - Logging__LogLevel__Microsoft.AspNetCore=Warning
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - doorx-network
+    volumes:
+      # Mount source code for hot reload (optional, comment out for production-like testing)
+      - ./src:/app/src:ro
+      # Mount logs directory
+      - ./logs:/app/logs
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # pgAdmin (Database Management UI)
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: doorx-pgadmin
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@doorx.local
+      PGADMIN_DEFAULT_PASSWORD: admin
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+    ports:
+      - "5050:80"
+    networks:
+      - doorx-network
+    volumes:
+      - pgadmin-data:/var/lib/pgadmin
+    depends_on:
+      - postgres
+
+networks:
+  doorx-network:
+    driver: bridge
+    name: doorx-network
+
+volumes:
+  postgres-data:
+    name: doorx-postgres-data
+  pgadmin-data:
+    name: doorx-pgadmin-data

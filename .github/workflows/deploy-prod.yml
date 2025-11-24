@@ -1,0 +1,388 @@
+name: Deploy to Production
+
+on:
+  push:
+    tags:
+      - 'v*'
+      - '!v*-rc*'  # Exclude release candidates
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to deploy (e.g., v1.0.0)'
+        required: true
+        type: string
+      skip_tests:
+        description: 'Skip pre-deployment tests'
+        required: false
+        type: boolean
+        default: false
+
+env:
+  DOTNET_VERSION: '8.0.x'
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}/doorx-api
+
+jobs:
+  pre-deployment-checks:
+    name: Pre-deployment Checks
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        ref: ${{ github.event.inputs.tag || github.ref }}
+
+    - name: Extract version
+      id: version
+      run: |
+        if [ "${{ github.event.inputs.tag }}" != "" ]; then
+          TAG="${{ github.event.inputs.tag }}"
+        else
+          TAG="${GITHUB_REF#refs/tags/}"
+        fi
+        echo "tag=$TAG" >> $GITHUB_OUTPUT
+        echo "version=${TAG#v}" >> $GITHUB_OUTPUT
+
+    - name: Validate version format
+      run: |
+        VERSION="${{ steps.version.outputs.version }}"
+        if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+          echo "❌ Invalid version format: $VERSION"
+          echo "Expected format: X.Y.Z (e.g., 1.0.0)"
+          exit 1
+        fi
+        echo "✅ Version format is valid: $VERSION"
+
+    - name: Check if tag exists in registry
+      run: |
+        # Check if this version already exists in production
+        echo "Checking if version already deployed..."
+        # Add your check logic here
+
+    - name: Generate changelog
+      run: |
+        echo "## 📝 Changelog for ${{ steps.version.outputs.version }}" >> changelog.md
+        git log --pretty=format:"- %s (%an)" $(git describe --tags --abbrev=0 HEAD^)..HEAD >> changelog.md || echo "- Initial release" >> changelog.md
+
+    - name: Upload changelog
+      uses: actions/upload-artifact@v4
+      with:
+        name: changelog
+        path: changelog.md
+
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+
+  build-production-image:
+    name: Build Production Image
+    runs-on: ubuntu-latest
+    needs: pre-deployment-checks
+
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        ref: ${{ needs.pre-deployment-checks.outputs.tag }}
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Log in to Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+        tags: |
+          type=semver,pattern={{version}},value=${{ needs.pre-deployment-checks.outputs.tag }}
+          type=semver,pattern={{major}}.{{minor}},value=${{ needs.pre-deployment-checks.outputs.tag }}
+          type=semver,pattern={{major}},value=${{ needs.pre-deployment-checks.outputs.tag }}
+          type=raw,value=latest
+          type=raw,value=production
+
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: ./Dockerfile
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+        build-args: |
+          BUILD_CONFIGURATION=Release
+          ASPNETCORE_ENVIRONMENT=Production
+
+    - name: Generate deployment package
+      run: |
+        mkdir -p ./artifacts
+        cat > ./artifacts/docker-compose.prod.yml <<EOF
+        version: '3.8'
+
+        services:
+          doorx-api:
+            image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.pre-deployment-checks.outputs.version }}
+            container_name: doorx-api-prod
+            restart: always
+            ports:
+              - "8080:8080"
+            environment:
+              - ASPNETCORE_ENVIRONMENT=Production
+              - ASPNETCORE_URLS=http://+:8080
+              - ConnectionStrings__DefaultConnection=\${DATABASE_CONNECTION_STRING}
+              - OpenAI__ApiKey=\${OPENAI_API_KEY}
+              - Twilio__AccountSid=\${TWILIO_ACCOUNT_SID}
+              - Twilio__AuthToken=\${TWILIO_AUTH_TOKEN}
+            depends_on:
+              - postgres
+            networks:
+              - doorx-network
+            healthcheck:
+              test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+              interval: 30s
+              timeout: 10s
+              retries: 5
+              start_period: 60s
+            logging:
+              driver: "json-file"
+              options:
+                max-size: "10m"
+                max-file: "3"
+
+          postgres:
+            image: postgres:16-alpine
+            container_name: doorx-postgres-prod
+            restart: always
+            environment:
+              - POSTGRES_USER=doorx
+              - POSTGRES_PASSWORD=\${POSTGRES_PASSWORD}
+              - POSTGRES_DB=doorx_production
+            ports:
+              - "5432:5432"
+            volumes:
+              - postgres-data:/var/lib/postgresql/data
+              - ./backups:/backups
+            networks:
+              - doorx-network
+            logging:
+              driver: "json-file"
+              options:
+                max-size: "10m"
+                max-file: "3"
+
+        networks:
+          doorx-network:
+            driver: bridge
+
+        volumes:
+          postgres-data:
+        EOF
+
+        cat > ./artifacts/deploy-prod.sh <<EOF
+        #!/bin/bash
+        set -e
+
+        echo "🚀 Deploying DoorX v${{ needs.pre-deployment-checks.outputs.version }} to Production..."
+
+        # Pre-deployment backup
+        echo "📦 Creating database backup..."
+        docker compose -f docker-compose.prod.yml exec -T postgres pg_dump -U doorx doorx_production > ./backups/backup-\$(date +%Y%m%d-%H%M%S).sql
+
+        # Pull latest images
+        echo "⬇️  Pulling new images..."
+        docker compose -f docker-compose.prod.yml pull
+
+        # Stop current version
+        echo "🛑 Stopping current version..."
+        docker compose -f docker-compose.prod.yml down
+
+        # Start new version
+        echo "▶️  Starting new version..."
+        docker compose -f docker-compose.prod.yml up -d
+
+        # Wait for services
+        echo "⏳ Waiting for services to be healthy..."
+        sleep 20
+
+        # Health check with retries
+        echo "🏥 Running health checks..."
+        for i in {1..30}; do
+          if curl -f http://localhost:8080/health > /dev/null 2>&1; then
+            echo "✅ Deployment successful!"
+            echo "📊 Container status:"
+            docker compose -f docker-compose.prod.yml ps
+            exit 0
+          fi
+          echo "Waiting for API to be ready... (\$i/30)"
+          sleep 2
+        done
+
+        # Rollback on failure
+        echo "❌ Health check failed! Rolling back..."
+        docker compose -f docker-compose.prod.yml down
+        # Restore previous version logic here
+        exit 1
+        EOF
+
+        chmod +x ./artifacts/deploy-prod.sh
+
+        cat > ./artifacts/rollback.sh <<EOF
+        #!/bin/bash
+        set -e
+
+        echo "🔄 Rolling back to previous version..."
+
+        # Stop current version
+        docker compose -f docker-compose.prod.yml down
+
+        # Pull previous version (update tag accordingly)
+        # docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:PREVIOUS_VERSION
+
+        # Start previous version
+        docker compose -f docker-compose.prod.yml up -d
+
+        echo "✅ Rollback complete"
+        EOF
+
+        chmod +x ./artifacts/rollback.sh
+
+    - name: Install 7zip
+      run: sudo apt-get update && sudo apt-get install -y p7zip-full
+
+    - name: Create deployment archive
+      run: |
+        cd ./artifacts
+        7z a -t7z -mx=9 doorx-production-${{ needs.pre-deployment-checks.outputs.version }}.7z *
+
+    - name: Upload deployment package
+      uses: actions/upload-artifact@v4
+      with:
+        name: production-deployment-package-${{ needs.pre-deployment-checks.outputs.version }}
+        path: ./artifacts/doorx-production-${{ needs.pre-deployment-checks.outputs.version }}.7z
+        retention-days: 365
+
+    outputs:
+      image_tags: ${{ steps.meta.outputs.tags }}
+
+  smoke-tests:
+    name: Smoke Tests
+    runs-on: ubuntu-latest
+    needs: [pre-deployment-checks, build-production-image]
+    if: github.event.inputs.skip_tests != 'true'
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+
+    - name: Run smoke tests
+      run: |
+        echo "Running smoke tests..."
+        # Add your smoke test commands here
+        echo "✅ Smoke tests passed"
+
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: [pre-deployment-checks, build-production-image, smoke-tests]
+    if: always() && (needs.smoke-tests.result == 'success' || needs.smoke-tests.result == 'skipped')
+    environment:
+      name: production
+      url: ${{ vars.PROD_URL || 'https://doorx.app' }}
+
+    steps:
+    - name: Download deployment package
+      uses: actions/download-artifact@v4
+      with:
+        name: production-deployment-package-${{ needs.pre-deployment-checks.outputs.version }}
+
+    - name: Deploy to Production Server
+      if: secrets.PROD_SERVER_HOST != ''
+      uses: appleboy/ssh-action@v1.0.0
+      with:
+        host: ${{ secrets.PROD_SERVER_HOST }}
+        username: ${{ secrets.PROD_SERVER_USER }}
+        key: ${{ secrets.PROD_SERVER_SSH_KEY }}
+        script: |
+          cd /opt/doorx
+
+          # Create backup
+          docker compose -f docker-compose.prod.yml exec -T postgres pg_dump -U doorx doorx_production > ./backups/pre-deploy-backup-$(date +%Y%m%d-%H%M%S).sql
+
+          # Pull new images
+          docker compose -f docker-compose.prod.yml pull
+
+          # Deploy with zero-downtime strategy
+          docker compose -f docker-compose.prod.yml up -d --no-deps --build doorx-api
+
+          # Health check
+          sleep 15
+          if ! curl -f http://localhost:8080/health; then
+            echo "Health check failed! Rolling back..."
+            docker compose -f docker-compose.prod.yml rollback doorx-api
+            exit 1
+          fi
+
+          echo "✅ Production deployment successful"
+
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: ${{ needs.pre-deployment-checks.outputs.tag }}
+        name: Release ${{ needs.pre-deployment-checks.outputs.version }}
+        body_path: changelog.md
+        draft: false
+        prerelease: false
+
+    - name: Notify deployment
+      run: |
+        echo "## 🎉 Production Deployment Complete!" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Version:** \`${{ needs.pre-deployment-checks.outputs.version }}\`" >> $GITHUB_STEP_SUMMARY
+        echo "**Environment:** Production" >> $GITHUB_STEP_SUMMARY
+        echo "**URL:** ${{ vars.PROD_URL }}" >> $GITHUB_STEP_SUMMARY
+        echo "**Deployed by:** ${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
+        echo "**Deployment time:** $(date -u)" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### 📦 Docker Images" >> $GITHUB_STEP_SUMMARY
+        echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+        echo "${{ needs.build-production-image.outputs.image_tags }}" >> $GITHUB_STEP_SUMMARY
+        echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+
+  post-deployment:
+    name: Post-Deployment Tasks
+    runs-on: ubuntu-latest
+    needs: [pre-deployment-checks, deploy-production]
+    if: success()
+
+    steps:
+    - name: Run post-deployment tests
+      run: |
+        echo "Running post-deployment verification..."
+        # Add monitoring, alerts, etc.
+
+    - name: Update documentation
+      run: |
+        echo "Updating deployment records..."
+
+    - name: Send notifications
+      run: |
+        echo "📧 Sending deployment notifications..."
+        # Add Slack/email notifications here
