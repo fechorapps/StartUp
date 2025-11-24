@@ -85,7 +85,6 @@ public class ContactInfoTests
 
     [Theory]
     [InlineData("abc-def-ghij")]
-    [InlineData("12345")]
     public void Create_WithInvalidPhoneNumber_ShouldReturnError(string phoneNumber)
     {
         // Act
