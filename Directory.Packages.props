@@ -28,4 +28,13 @@
     <PackageVersion Include="ErrorOr" Version="2.0.1" />
   </ItemGroup>
 
+  <ItemGroup Label="Security Fixes">
+    <!-- Fix for GHSA-7jgj-8wvc-jh57 -->
+    <PackageVersion Include="System.Net.Http" Version="4.3.4" />
+    <!-- Fix for GHSA-cmhx-cq75-c4mj -->
+    <PackageVersion Include="System.Text.RegularExpressions" Version="4.3.1" />
+    <!-- Fix for GHSA-hh2w-p6rv-4g7w and GHSA-8g4q-xg66-9fp4 -->
+    <PackageVersion Include="System.Text.Json" Version="8.0.5" />
+  </ItemGroup>
+
 </Project>
