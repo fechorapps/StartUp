@@ -4,7 +4,7 @@ namespace Domain.UnitTests.Common;
 
 /// <summary>
 /// Comprehensive unit tests for Entity&lt;TId&gt; base class.
-/// Tests cover equality, identity, hash codes, operators, and date tracking.
+/// Tests cover equality, identity, hash codes, and operators.
 /// </summary>
 public class EntityTests
 {
@@ -24,31 +24,6 @@ public class EntityTests
     }
 
     [Fact]
-    public void Constructor_WithId_ShouldSetCreatedOnUtc()
-    {
-        // Arrange
-        var beforeCreation = DateTime.UtcNow;
-
-        // Act
-        var entity = new TestEntity(Guid.NewGuid(), "Test");
-        var afterCreation = DateTime.UtcNow;
-
-        // Assert
-        entity.CreatedOnUtc.Should().BeOnOrAfter(beforeCreation);
-        entity.CreatedOnUtc.Should().BeOnOrBefore(afterCreation);
-    }
-
-    [Fact]
-    public void Constructor_WithId_ShouldSetModifiedOnUtcToNull()
-    {
-        // Arrange & Act
-        var entity = new TestEntity(Guid.NewGuid(), "Test");
-
-        // Assert
-        entity.ModifiedOnUtc.Should().BeNull();
-    }
-
-    [Fact]
     public void ParameterlessConstructor_ShouldBeUsableForSerialization()
     {
         // Arrange & Act
@@ -56,7 +31,6 @@ public class EntityTests
 
         // Assert
         entity.Should().NotBeNull();
-        entity.ModifiedOnUtc.Should().BeNull();
     }
 
     #endregion
@@ -306,65 +280,6 @@ public class EntityTests
 
     #endregion
 
-    #region Modified Date Tests
-
-    [Fact]
-    public void UpdateModifiedDate_ShouldSetModifiedOnUtc()
-    {
-        // Arrange
-        var entity = new TestEntity(Guid.NewGuid(), "Test");
-        var beforeUpdate = DateTime.UtcNow;
-
-        // Act
-        entity.TriggerModifiedDateUpdate();
-        var afterUpdate = DateTime.UtcNow;
-
-        // Assert
-        entity.ModifiedOnUtc.Should().NotBeNull();
-        entity.ModifiedOnUtc.Should().BeOnOrAfter(beforeUpdate);
-        entity.ModifiedOnUtc.Should().BeOnOrBefore(afterUpdate);
-    }
-
-    [Fact]
-    public void UpdateModifiedDate_CalledMultipleTimes_ShouldUpdateToLatestTime()
-    {
-        // Arrange
-        var entity = new TestEntity(Guid.NewGuid(), "Test");
-
-        // Act
-        entity.TriggerModifiedDateUpdate();
-        var firstModified = entity.ModifiedOnUtc;
-
-        Thread.Sleep(10); // Ensure time difference
-
-        entity.TriggerModifiedDateUpdate();
-        var secondModified = entity.ModifiedOnUtc;
-
-        // Assert
-        firstModified.Should().NotBeNull();
-        secondModified.Should().NotBeNull();
-        secondModified!.Value.Should().BeAfter(firstModified!.Value);
-    }
-
-    [Fact]
-    public void ChangeName_ShouldUpdateModifiedDate()
-    {
-        // Arrange
-        var entity = new TestEntity(Guid.NewGuid(), "Original");
-        var beforeChange = DateTime.UtcNow;
-
-        // Act
-        entity.ChangeName("Updated");
-        var afterChange = DateTime.UtcNow;
-
-        // Assert
-        entity.ModifiedOnUtc.Should().NotBeNull();
-        entity.ModifiedOnUtc.Should().BeOnOrAfter(beforeChange);
-        entity.ModifiedOnUtc.Should().BeOnOrBefore(afterChange);
-    }
-
-    #endregion
-
     #region Collection Behavior Tests
 
     [Fact]
@@ -422,30 +337,6 @@ public class EntityTests
 
         // Assert
         result.Should().BeTrue();
-    }
-
-    [Fact]
-    public void Entity_CreatedOnUtc_ShouldBeInUtc()
-    {
-        // Arrange & Act
-        var entity = new TestEntity(Guid.NewGuid(), "Test");
-
-        // Assert
-        entity.CreatedOnUtc.Kind.Should().Be(DateTimeKind.Utc);
-    }
-
-    [Fact]
-    public void Entity_ModifiedOnUtc_WhenSet_ShouldBeInUtc()
-    {
-        // Arrange
-        var entity = new TestEntity(Guid.NewGuid(), "Test");
-
-        // Act
-        entity.TriggerModifiedDateUpdate();
-
-        // Assert
-        entity.ModifiedOnUtc.Should().NotBeNull();
-        entity.ModifiedOnUtc!.Value.Kind.Should().Be(DateTimeKind.Utc);
     }
 
     #endregion

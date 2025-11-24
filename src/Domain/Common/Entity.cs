@@ -17,23 +17,12 @@ public abstract class Entity<TId> : IEquatable<Entity<TId>>
     public TId Id { get; protected init; }
 
     /// <summary>
-    /// Fecha y hora UTC de creación de la entidad.
-    /// </summary>
-    public DateTime CreatedOnUtc { get; protected init; }
-
-    /// <summary>
-    /// Fecha y hora UTC de la última modificación de la entidad.
-    /// </summary>
-    public DateTime? ModifiedOnUtc { get; protected set; }
-
-    /// <summary>
     /// Constructor protegido para inicializar el Id.
     /// </summary>
     /// <param name="id">Identificador único de la entidad.</param>
     protected Entity(TId id)
     {
         Id = id;
-        CreatedOnUtc = DateTime.UtcNow;
     }
 
     /// <summary>
@@ -44,14 +33,6 @@ public abstract class Entity<TId> : IEquatable<Entity<TId>>
     {
     }
 #pragma warning restore CS8618
-
-    /// <summary>
-    /// Actualiza la fecha de modificación a la fecha y hora actual UTC.
-    /// </summary>
-    protected void UpdateModifiedDate()
-    {
-        ModifiedOnUtc = DateTime.UtcNow;
-    }
 
     #region Equality
 
