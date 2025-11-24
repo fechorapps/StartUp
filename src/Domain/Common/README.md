@@ -7,6 +7,7 @@ Este directorio contiene las clases base fundamentales para implementar Domain-D
 ```
 Common/
 ├── Entity.cs              # Clase base para entidades con identidad
+├── AuditableEntity.cs     # Clase base para entidades con auditoría
 ├── AggregateRoot.cs       # Clase base para aggregate roots
 ├── ValueObject.cs         # Clase base para value objects
 ├── Errors/
@@ -18,28 +19,39 @@ Common/
 
 ## 🎯 Guía de Uso
 
+### Jerarquía de Clases
+
+```
+Entity<TId>                    → Identidad básica (solo Id)
+    ↑
+AuditableEntity<TId>          → Identidad + Auditoría (CreatedOnUtc, ModifiedOnUtc)
+    ↑
+AggregateRoot<TId>            → Auditoría + Domain Events
+```
+
 ### 1. Entity&lt;TId&gt;
 
-**Cuándo usar:** Para objetos del dominio que se definen por su identidad única.
+**Cuándo usar:** Para objetos del dominio que se definen por su identidad única, **sin necesidad de auditoría**.
 
 **Características:**
 - Tiene un `Id` único
 - Dos entidades son iguales si tienen el mismo `Id`
-- Incluye `CreatedOnUtc` y `ModifiedOnUtc`
+- **NO** incluye propiedades de auditoría
+- Ideal para entidades simples o child entities dentro de un agregado
 
 **Ejemplo:**
 
 ```csharp
 // Definir el Id como Value Object (recomendado)
-public record ServiceRequestId(Guid Value);
+public record MessageId(Guid Value);
 
-// Crear una entidad
-public class ServiceRequestMessage : Entity<Guid>
+// Crear una entidad simple sin auditoría
+public class ServiceRequestMessage : Entity<MessageId>
 {
     public string Content { get; private set; }
     public Guid SenderId { get; private set; }
 
-    private ServiceRequestMessage(Guid id, string content, Guid senderId)
+    private ServiceRequestMessage(MessageId id, string content, Guid senderId)
         : base(id)
     {
         Content = content;
@@ -48,20 +60,63 @@ public class ServiceRequestMessage : Entity<Guid>
 
     public static ServiceRequestMessage Create(string content, Guid senderId)
     {
-        return new ServiceRequestMessage(Guid.NewGuid(), content, senderId);
+        return new ServiceRequestMessage(new MessageId(Guid.NewGuid()), content, senderId);
     }
 }
 ```
 
-### 2. AggregateRoot&lt;TId&gt;
+### 2. AuditableEntity&lt;TId&gt;
+
+**Cuándo usar:** Para entidades que requieren seguimiento de auditoría (creación y modificación).
+
+**Características:**
+- Hereda de `Entity<TId>` (tiene identidad)
+- Incluye `CreatedOnUtc` (se establece automáticamente en construcción)
+- Incluye `ModifiedOnUtc` (nullable, se actualiza con `UpdateModifiedDate()`)
+- Útil para entidades standalone que no son aggregate roots pero necesitan auditoría
+
+**Ejemplo:**
+
+```csharp
+public record NotificationId(Guid Value);
+
+public class Notification : AuditableEntity<NotificationId>
+{
+    public string Title { get; private set; }
+    public string Message { get; private set; }
+    public bool IsRead { get; private set; }
+
+    private Notification(NotificationId id, string title, string message)
+        : base(id)
+    {
+        Title = title;
+        Message = message;
+        IsRead = false;
+    }
+
+    public static Notification Create(string title, string message)
+    {
+        return new Notification(new NotificationId(Guid.NewGuid()), title, message);
+    }
+
+    public void MarkAsRead()
+    {
+        IsRead = true;
+        UpdateModifiedDate(); // Actualiza ModifiedOnUtc
+    }
+}
+```
+
+### 3. AggregateRoot&lt;TId&gt;
 
 **Cuándo usar:** Para la entidad raíz de un agregado que garantiza consistencia.
 
 **Características:**
-- Hereda de `Entity<TId>`
+- Hereda de `AuditableEntity<TId>` (tiene identidad + auditoría)
 - Puede generar y almacenar domain events
 - Es el único punto de entrada para modificar el agregado
 - Solo los aggregate roots tienen repositorios
+- Incluye automáticamente `CreatedOnUtc` y `ModifiedOnUtc`
 
 **Ejemplo:**
 
@@ -135,7 +190,7 @@ public class ServiceRequest : AggregateRoot<ServiceRequestId>
 }
 ```
 
-### 3. ValueObject
+### 4. ValueObject
 
 **Cuándo usar:** Para objetos que se definen por sus valores, no por identidad.
 
@@ -209,7 +264,7 @@ public record PropertyId(Guid Value);
 public record VendorId(Guid Value);
 ```
 
-### 4. IDomainEvent
+### 5. IDomainEvent
 
 **Cuándo usar:** Para comunicar que algo importante sucedió en el dominio.
 
@@ -240,7 +295,7 @@ public record VendorAssignedEvent(
 }
 ```
 
-### 5. IRepository&lt;TEntity, TId&gt;
+### 6. IRepository&lt;TEntity, TId&gt;
 
 **Cuándo usar:** Para definir el contrato de persistencia de un aggregate root.
 
@@ -292,7 +347,7 @@ public class GetServiceRequestsQueryHandler
 }
 ```
 
-### 6. DomainErrors
+### 7. DomainErrors
 
 **Cuándo usar:** Para retornar errores de validación y lógica de negocio.
 

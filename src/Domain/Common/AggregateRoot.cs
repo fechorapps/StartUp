@@ -13,8 +13,9 @@ namespace DoorX.Domain.Common;
 /// - Garantizan las invariantes del negocio
 /// - Pueden generar y almacenar domain events
 /// - Son los únicos que pueden ser referenciados directamente desde fuera del agregado
+/// - Incluyen auditoría automática (CreatedOnUtc, ModifiedOnUtc) heredada de AuditableEntity
 /// </remarks>
-public abstract class AggregateRoot<TId> : Entity<TId>
+public abstract class AggregateRoot<TId> : AuditableEntity<TId>
     where TId : notnull
 {
     private readonly List<IDomainEvent> _domainEvents = new();
