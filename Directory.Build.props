@@ -1,0 +1,67 @@
+<Project>
+
+  <PropertyGroup>
+    <!-- Configuración General -->
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+
+    <!-- Versión del Producto -->
+    <Version>1.0.0</Version>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+
+    <!-- Información de la Compañía -->
+    <Company>FechoApps</Company>
+    <Product>DoorX</Product>
+    <Copyright>Copyright © FechoApps 2024</Copyright>
+
+    <!-- Namespace Automático: DoorX.{NombreDelProyecto} -->
+    <RootNamespace>DoorX.$(MSBuildProjectName)</RootNamespace>
+
+    <!-- Configuración de Compilación -->
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <WarningLevel>5</WarningLevel>
+    <NoWarn>$(NoWarn);CS1591</NoWarn> <!-- Deshabilitar advertencias de documentación XML -->
+
+    <!-- Generación de Documentación -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+
+    <!-- Análisis de Código -->
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+    <AnalysisLevel>latest</AnalysisLevel>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+
+    <!-- Deterministic Build para reproducibilidad -->
+    <Deterministic>true</Deterministic>
+    <ContinuousIntegrationBuild Condition="'$(CI)' == 'true'">true</ContinuousIntegrationBuild>
+  </PropertyGroup>
+
+  <!-- Configuración específica por tipo de proyecto -->
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'Domain'">
+    <Description>DoorX Domain Layer - Entidades y lógica de negocio core</Description>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'Application'">
+    <Description>DoorX Application Layer - Casos de uso y orquestación</Description>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'Infrastructure'">
+    <Description>DoorX Infrastructure Layer - Implementaciones externas</Description>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'API'">
+    <Description>DoorX API - REST API y controladores</Description>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'Client'">
+    <Description>DoorX Client - Angular SPA</Description>
+  </PropertyGroup>
+
+  <!-- Paquetes NuGet Comunes (opcional) -->
+  <ItemGroup>
+    <!-- Todos los proyectos usan estas referencias -->
+  </ItemGroup>
+
+</Project>
