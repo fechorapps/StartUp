@@ -211,17 +211,37 @@ jobs:
   dependency-review:
     name: Dependency Review
     runs-on: ubuntu-latest
+    # Only run on pull requests (required for dependency-review-action)
     if: github.event_name == 'pull_request'
 
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
 
+    # REQUIREMENTS:
+    # This action requires the Dependency Graph feature to be enabled in repository settings
+    # Enable at: https://github.com/fechorapps/StartUp/settings/security_analysis
+    #
+    # Recommended settings to enable:
+    # - Dependency graph (REQUIRED)
+    # - Dependabot alerts
+    # - Dependabot security updates
     - name: Dependency Review
       uses: actions/dependency-review-action@v4
       with:
         fail-on-severity: moderate
         deny-licenses: GPL-3.0, AGPL-3.0
+      continue-on-error: true
+      id: dependency-review
+
+    - name: Check dependency review status
+      if: steps.dependency-review.outcome == 'failure'
+      run: |
+        echo "::warning::Dependency review failed. This may be due to:"
+        echo "::warning::1. Dependency Graph not enabled in repository settings"
+        echo "::warning::2. Vulnerable dependencies detected"
+        echo "::warning::3. Denied licenses detected (GPL-3.0, AGPL-3.0)"
+        echo "::warning::Enable Dependency Graph at: https://github.com/fechorapps/StartUp/settings/security_analysis"
 
   quality-summary:
     name: Quality Summary

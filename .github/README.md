@@ -88,8 +88,19 @@ Jobs:
   - security-scan     # Vulnerabilidades
   - secret-scan       # Secrets expuestos
   - test-coverage     # Cobertura 80%
-  - dependency-review # Revisión de deps
+  - dependency-review # Revisión de deps (solo PRs)
 ```
+
+**⚠️ Requisitos para Dependency Review:**
+
+El job `dependency-review` requiere habilitar **Dependency Graph** en:
+- **Settings → Code security and analysis → Dependency graph**
+- URL directa: https://github.com/fechorapps/StartUp/settings/security_analysis
+
+Configuración recomendada:
+- ✅ **Dependency graph** (requerido para dependency-review)
+- ✅ **Dependabot alerts** (alertas de vulnerabilidades)
+- ✅ **Dependabot security updates** (parches automáticos)
 
 ### Deploy Development
 
@@ -237,6 +248,17 @@ gh secret list
 # Verificar environment variables
 # Settings → Environments → [env] → Variables
 ```
+
+### Dependency Review falla
+
+**Error:** "Dependency review is not supported on this repository"
+
+**Solución:**
+1. Ir a: https://github.com/fechorapps/StartUp/settings/security_analysis
+2. Habilitar **Dependency graph**
+3. Re-ejecutar el workflow
+
+**Nota:** El job tiene `continue-on-error: true` para no bloquear otros checks mientras se configura.
 
 ## 📚 Documentación Completa
 
