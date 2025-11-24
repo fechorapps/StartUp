@@ -1,51 +1,106 @@
-using ErrorOr;
+using DoorX.Domain.Common;
 
 namespace DoorX.Domain.Common.ValueObjects;
 
 /// <summary>
-/// Value Object representing a supported language for communication
+/// Smart Enum representing a supported language for communication
 /// </summary>
-public record Language
+/// <remarks>
+/// Persistence Strategy: MEMORY ONLY (Smart Enum - MVP)
+/// - Limited set of supported languages initially
+/// - Stored as VARCHAR(5) in database (ISO 639-1 code)
+/// - Adding languages requires system translations
+///
+/// Future: Consider persistence if supporting 20+ languages
+/// See docs/CATALOGS_PERSISTENCE.md for details
+/// </remarks>
+public sealed class Language : SmartEnum<Language>
 {
-    private static readonly HashSet<string> SupportedLanguages = new()
-    {
-        "en", "es", "fr", "pt"
-    };
+    // Predefined languages (ID, ISO Code, Name, Native Name)
+    public static readonly Language English = new(1, "en", "English", "English", "🇺🇸");
+    public static readonly Language Spanish = new(2, "es", "Spanish", "Español", "🇪🇸");
+    public static readonly Language French = new(3, "fr", "French", "Français", "🇫🇷");
+    public static readonly Language Portuguese = new(4, "pt", "Portuguese", "Português", "🇵🇹");
 
-    public string Code { get; init; }
-    public string Name { get; init; }
+    /// <summary>
+    /// ISO 639-1 language code (2 letters)
+    /// </summary>
+    public string Code => Name;
 
-    private Language(string code, string name)
+    /// <summary>
+    /// English name of the language
+    /// </summary>
+    public string EnglishName { get; }
+
+    /// <summary>
+    /// Native name of the language (how it's called in that language)
+    /// </summary>
+    public string NativeName { get; }
+
+    /// <summary>
+    /// Flag emoji for UI display
+    /// </summary>
+    public string Flag { get; }
+
+    private Language(int id, string code, string englishName, string nativeName, string flag)
+        : base(id, code)
     {
-        Code = code;
-        Name = name;
+        EnglishName = englishName;
+        NativeName = nativeName;
+        Flag = flag;
     }
 
-    public static ErrorOr<Language> Create(string code)
+    /// <summary>
+    /// Checks if this is the default system language
+    /// </summary>
+    public bool IsDefault() => this == English;
+
+    /// <summary>
+    /// Gets the display name based on current UI language
+    /// For now returns native name, but could be localized later
+    /// </summary>
+    public string GetDisplayName() => NativeName;
+
+    /// <summary>
+    /// Gets the culture code for .NET CultureInfo
+    /// </summary>
+    public string GetCultureCode()
     {
-        if (string.IsNullOrWhiteSpace(code))
-            return Error.Validation("Language.Code", "Language code is required");
-
-        var normalizedCode = code.ToLower();
-        if (!SupportedLanguages.Contains(normalizedCode))
-            return Error.Validation("Language.Code", $"Unsupported language. Supported languages: {string.Join(", ", SupportedLanguages)}");
-
-        var name = normalizedCode switch
+        return this switch
         {
-            "en" => "English",
-            "es" => "Spanish",
-            "fr" => "French",
-            "pt" => "Portuguese",
-            _ => normalizedCode
+            var l when l == English => "en-US",
+            var l when l == Spanish => "es-ES",
+            var l when l == French => "fr-FR",
+            var l when l == Portuguese => "pt-PT",
+            _ => "en-US"
         };
-
-        return new Language(normalizedCode, name);
     }
 
-    public static Language English => new("en", "English");
-    public static Language Spanish => new("es", "Spanish");
-    public static Language French => new("fr", "French");
-    public static Language Portuguese => new("pt", "Portuguese");
+    /// <summary>
+    /// Checks if this language is right-to-left
+    /// </summary>
+    public bool IsRightToLeft() => false; // None of our current languages are RTL
 
-    public override string ToString() => Name;
+    /// <summary>
+    /// Gets common greeting in this language
+    /// </summary>
+    public string GetGreeting()
+    {
+        return this switch
+        {
+            var l when l == English => "Hello",
+            var l when l == Spanish => "Hola",
+            var l when l == French => "Bonjour",
+            var l when l == Portuguese => "Olá",
+            _ => "Hello"
+        };
+    }
+
+    /// <summary>
+    /// Formats a date according to language conventions
+    /// </summary>
+    public string FormatDate(DateTime date)
+    {
+        return date.ToString("d", new System.Globalization.CultureInfo(GetCultureCode()));
+    }
 }
