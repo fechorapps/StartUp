@@ -196,8 +196,8 @@ public class ChannelTests
 
         // Assert
         channel2.Should().NotBeNull();
-        channel1.Should().Be(channel2);
-        (channel1 == channel2!).Should().BeTrue();
+        channel1.Should().Be(channel2!);
+        channel1.Equals(channel2!).Should().BeTrue();
     }
 
     [Fact]

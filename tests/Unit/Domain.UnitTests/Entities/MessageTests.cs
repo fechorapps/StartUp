@@ -177,13 +177,13 @@ public class MessageTests
     }
 
     [Fact]
-    public void Equality_SameId_ShouldBeEqual()
+    public void Equality_SameReference_ShouldBeEqual()
     {
         // Arrange
         var message = Message.Create("Test", SenderType.Tenant, Channel.SMS).Value;
 
         // Assert
         message.Should().Be(message);
-        (message == message).Should().BeTrue();
+        message.Equals(message).Should().BeTrue();
     }
 }

@@ -210,8 +210,8 @@ public class SenderTypeTests
 
         // Assert
         sender2.Should().NotBeNull();
-        sender1.Should().Be(sender2);
-        (sender1 == sender2!).Should().BeTrue();
+        sender1.Should().Be(sender2!);
+        sender1.Equals(sender2!).Should().BeTrue();
     }
 
     [Fact]
