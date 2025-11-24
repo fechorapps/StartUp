@@ -212,7 +212,7 @@ public sealed class WorkOrder : AggregateRoot<WorkOrderId>
         if (transitionResult.IsError)
             return transitionResult.Errors;
 
-        AddDomainEvent(new WorkStartedEvent(Id, AssignedVendorId.Value));
+        AddDomainEvent(new WorkStartedEvent(Id, AssignedVendorId));
 
         return Result.Success;
     }
@@ -231,7 +231,7 @@ public sealed class WorkOrder : AggregateRoot<WorkOrderId>
 
         CompletedAt = DateTime.UtcNow;
 
-        AddDomainEvent(new WorkCompletedEvent(Id, AssignedVendorId.Value, CompletedAt.Value));
+        AddDomainEvent(new WorkCompletedEvent(Id, AssignedVendorId, CompletedAt.Value));
 
         return Result.Success;
     }
