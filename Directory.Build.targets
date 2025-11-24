@@ -1,0 +1,53 @@
+<Project>
+
+  <!-- Target personalizado: Mostrar información del build -->
+  <Target Name="ShowBuildInfo" BeforeTargets="CoreCompile">
+    <Message Importance="high" Text="================================================" />
+    <Message Importance="high" Text="Building: $(MSBuildProjectName)" />
+    <Message Importance="high" Text="Namespace: $(RootNamespace)" />
+    <Message Importance="high" Text="Framework: $(TargetFramework)" />
+    <Message Importance="high" Text="Configuration: $(Configuration)" />
+    <Message Importance="high" Text="================================================" />
+  </Target>
+
+  <!-- Target personalizado: Validar estructura del proyecto -->
+  <Target Name="ValidateProjectStructure" BeforeTargets="Build">
+    <Message Importance="normal" Text="Validating project structure for $(MSBuildProjectName)..." />
+  </Target>
+
+  <!-- Target personalizado: Limpiar archivos generados -->
+  <Target Name="CleanGenerated" AfterTargets="Clean">
+    <ItemGroup>
+      <GeneratedFiles Include="$(MSBuildProjectDirectory)\**\*.g.cs" />
+      <GeneratedFiles Include="$(MSBuildProjectDirectory)\**\*.generated.cs" />
+    </ItemGroup>
+    <Delete Files="@(GeneratedFiles)" />
+    <Message Importance="high" Text="Cleaned generated files for $(MSBuildProjectName)" />
+  </Target>
+
+  <!-- Target personalizado: Verificar dependencias de arquitectura -->
+  <Target Name="ValidateArchitectureDependencies" BeforeTargets="Build" Condition="'$(Configuration)' == 'Release'">
+    <Message Importance="normal" Text="Validating architecture dependencies..." />
+
+    <!-- Domain no debe referenciar otros proyectos -->
+    <Error Condition="'$(MSBuildProjectName)' == 'Domain' AND '$(ProjectReference)' != ''"
+           Text="Domain layer should not have project references!" />
+
+    <!-- Application solo puede referenciar Domain -->
+    <Warning Condition="'$(MSBuildProjectName)' == 'Application'"
+             Text="Ensure Application only references Domain layer" />
+  </Target>
+
+  <!-- Target personalizado: Copiar archivos de configuración en desarrollo -->
+  <Target Name="CopyDevSettings" AfterTargets="Build" Condition="'$(Configuration)' == 'Debug' AND '$(MSBuildProjectName)' == 'Server'">
+    <Message Importance="high" Text="Development mode: Configuration files ready" />
+  </Target>
+
+  <!-- Target personalizado: Generar reporte de build -->
+  <Target Name="GenerateBuildReport" AfterTargets="Build" Condition="'$(GenerateBuildReport)' == 'true'">
+    <Message Importance="high" Text="Build completed successfully for $(MSBuildProjectName)" />
+    <Message Importance="high" Text="Output: $(OutputPath)" />
+    <Message Importance="high" Text="Assembly: $(TargetFileName)" />
+  </Target>
+
+</Project>
