@@ -78,15 +78,21 @@ public class ServiceCategoryTests
     }
 
     [Fact]
-    public void FromName_IsCaseSensitive()
+    public void FromName_IsCaseInsensitive()
     {
         // Act
         var lowerCase = ServiceCategory.FromName("plumbing");
         var upperCase = ServiceCategory.FromName("PLUMBING");
+        var correctCase = ServiceCategory.FromName("Plumbing");
 
         // Assert
-        lowerCase.Should().BeNull();
-        upperCase.Should().BeNull();
+        lowerCase.Should().NotBeNull();
+        upperCase.Should().NotBeNull();
+        correctCase.Should().NotBeNull();
+
+        lowerCase.Should().Be(ServiceCategory.Plumbing);
+        upperCase.Should().Be(ServiceCategory.Plumbing);
+        correctCase.Should().Be(ServiceCategory.Plumbing);
     }
 
     [Theory]
